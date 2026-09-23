@@ -1,20 +1,25 @@
-import React, { useState, useMemo } from 'react';
-import { Search, Grid, List, SlidersHorizontal } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, SlidersHorizontal } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import EventCard from '../components/events/EventCard';
 import EventFilters from '../components/events/EventFilters';
 
 export default function Events() {
-  const { events } = useStore();
+  const { events, fetchEvents, loading } = useStore();
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ category: '', city: '', price: '' });
   const [showFilters, setShowFilters] = useState(false);
 
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
   const handleFilter = (key, val) => setFilters(f => ({ ...f, [key]: val }));
 
   const filtered = useMemo(() => events.filter(e => {
+    const tags = Array.isArray(e.tags) ? e.tags : [];
     if (search && !e.title.toLowerCase().includes(search.toLowerCase()) &&
-        !e.tags.some(t => t.toLowerCase().includes(search.toLowerCase()))) return false;
+        !tags.some(t => t.toLowerCase().includes(search.toLowerCase()))) return false;
     if (filters.category && e.category !== filters.category) return false;
     if (filters.city && e.city !== filters.city) return false;
     if (filters.price === 'free' && !e.isFree) return false;
@@ -46,7 +51,7 @@ export default function Events() {
         </div>
 
         <div className="flex gap-6">
-          <aside className={`hidden lg:block w-64 shrink-0`}>
+          <aside className="hidden lg:block w-64 shrink-0">
             <EventFilters filters={filters} onChange={handleFilter} />
           </aside>
 
@@ -59,7 +64,13 @@ export default function Events() {
           )}
 
           <div className="flex-1">
-            {filtered.length === 0 ? (
+            {loading.events ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                {[1,2,3,4,5,6].map(i => (
+                  <div key={i} className="bg-white rounded-2xl border border-slate-200 h-72 animate-pulse" />
+                ))}
+              </div>
+            ) : filtered.length === 0 ? (
               <div className="text-center py-20">
                 <p className="text-4xl mb-4">🔍</p>
                 <p className="text-xl font-semibold text-gray-700" style={{fontFamily:'Poppins,sans-serif'}}>No events found</p>

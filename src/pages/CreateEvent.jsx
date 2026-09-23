@@ -91,7 +91,9 @@ export default function CreateEvent() {
     setFormData({ ...formData, agenda: formData.agenda.filter((_, i) => i !== idx) });
   };
 
-  const handleSubmit = () => {
+  const [publishing, setPublishing] = React.useState(false);
+
+  const handleSubmit = async () => {
     if (!formData.title || !formData.date || !formData.venue) {
       toast.error('Please fill in the essential event details!');
       return;
@@ -105,9 +107,20 @@ export default function CreateEvent() {
       isFree: formData.tickets.every(t => t.price === 0)
     };
 
-    addEvent(payload);
-    toast.success('🎉 Event successfully published!');
-    navigate('/events');
+    setPublishing(true);
+    try {
+      const result = await addEvent(payload);
+      if (result?.success === false) {
+        toast.error(result.error || 'Failed to publish event.');
+      } else {
+        toast.success('🎉 Event successfully published!');
+        navigate('/events');
+      }
+    } catch (err) {
+      toast.error('Failed to publish event. Please try again.');
+    } finally {
+      setPublishing(false);
+    }
   };
 
   return (
@@ -486,9 +499,10 @@ export default function CreateEvent() {
               <button
                 type="button"
                 onClick={handleSubmit}
-                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold text-sm px-8 py-3 rounded-xl transition shadow-lg shadow-green-600/30"
+                disabled={publishing}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold text-sm px-8 py-3 rounded-xl transition shadow-lg shadow-green-600/30 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <CheckCircle className="w-5 h-5" /> Publish Event
+                <CheckCircle className="w-5 h-5" /> {publishing ? 'Publishing...' : 'Publish Event'}
               </button>
             )}
           </div>

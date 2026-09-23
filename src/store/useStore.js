@@ -1,45 +1,154 @@
 import { create } from 'zustand';
-import { events as initialEvents } from '../data/events';
+import api from '../services/api';
+
+// Initialize auth from localStorage if it exists
+const storedToken = localStorage.getItem('rsr_token');
+const storedUser = localStorage.getItem('rsr_user');
 
 export const useStore = create((set, get) => ({
-  events: initialEvents,
+  events: [],
   myTickets: [],
   leads: [],
-  user: null,
-  isLoggedIn: false,
-
-  login: (user) => set({ user, isLoggedIn: true }),
-  logout: () => set({ user: null, isLoggedIn: false }),
-
-  addEvent: (event) => set((state) => ({
-    events: [{ ...event, id: String(Date.now()), registrations: 0, attendees: 0, leads: 0, isFeatured: false }, ...state.events]
-  })),
-
-  registerForEvent: (eventId, ticketType, attendeeInfo) => {
-    const event = get().events.find(e => e.id === eventId);
-    if (!event) return;
-    const ticket = {
-      id: String(Date.now()),
-      eventId,
-      eventTitle: event.title,
-      eventDate: event.date,
-      eventTime: event.time,
-      eventVenue: event.venue,
-      eventImage: event.image,
-      ticketType,
-      attendeeInfo,
-      qrCode: `RSR-${eventId}-${Date.now()}`,
-      checkedIn: false
-    };
-    set((state) => ({ myTickets: [...state.myTickets, ticket] }));
-    return ticket;
+  user: storedUser ? JSON.parse(storedUser) : null,
+  isLoggedIn: Boolean(storedToken && storedUser),
+  loading: {
+    events: false,
+    tickets: false,
+    leads: false,
+    auth: false,
   },
 
-  checkIn: (ticketId) => set((state) => ({
-    myTickets: state.myTickets.map(t => t.id === ticketId ? { ...t, checkedIn: true } : t)
-  })),
+  // ─── Auth ────────────────────────────────────────────────────────────────────
+  login: async (credentials) => {
+    set((state) => ({ loading: { ...state.loading, auth: true } }));
+    try {
+      const data = await api.auth.login(credentials);
+      localStorage.setItem('rsr_token', data.token);
+      localStorage.setItem('rsr_user', JSON.stringify(data.user));
+      set({ user: data.user, isLoggedIn: true });
+      return { success: true, user: data.user };
+    } catch (err) {
+      return { success: false, error: err.message };
+    } finally {
+      set((state) => ({ loading: { ...state.loading, auth: false } }));
+    }
+  },
 
-  addLead: (lead) => set((state) => ({
-    leads: [{ ...lead, id: String(Date.now()), score: Math.floor(Math.random() * 40) + 60, createdAt: new Date().toISOString() }, ...state.leads]
-  })),
+  register: async (userData) => {
+    set((state) => ({ loading: { ...state.loading, auth: true } }));
+    try {
+      const data = await api.auth.register(userData);
+      localStorage.setItem('rsr_token', data.token);
+      localStorage.setItem('rsr_user', JSON.stringify(data.user));
+      set({ user: data.user, isLoggedIn: true });
+      return { success: true, user: data.user };
+    } catch (err) {
+      return { success: false, error: err.message };
+    } finally {
+      set((state) => ({ loading: { ...state.loading, auth: false } }));
+    }
+  },
+
+  logout: () => {
+    localStorage.removeItem('rsr_token');
+    localStorage.removeItem('rsr_user');
+    set({ user: null, isLoggedIn: false, myTickets: [], leads: [] });
+  },
+
+  // ─── Events ──────────────────────────────────────────────────────────────────
+  fetchEvents: async (filters = {}) => {
+    set((state) => ({ loading: { ...state.loading, events: true } }));
+    try {
+      const data = await api.events.getAll(filters);
+      set({ events: data.events || [] });
+    } catch (err) {
+      console.error('Failed to fetch events:', err);
+    } finally {
+      set((state) => ({ loading: { ...state.loading, events: false } }));
+    }
+  },
+
+  addEvent: async (eventData) => {
+    try {
+      const data = await api.events.create(eventData);
+      set((state) => ({ events: [data.event, ...state.events] }));
+      return { success: true, event: data.event };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  },
+
+  // ─── Tickets ─────────────────────────────────────────────────────────────────
+  registerForEvent: async (eventId, ticketType, attendeeInfo) => {
+    try {
+      const data = await api.tickets.register({ eventId, ticketType, attendeeInfo });
+      set((state) => ({ myTickets: [data.ticket, ...state.myTickets] }));
+      // Update local event registrations count
+      set((state) => ({
+        events: state.events.map(e =>
+          e.id === eventId ? { ...e, registrations: (e.registrations || 0) + 1 } : e
+        )
+      }));
+      return data.ticket;
+    } catch (err) {
+      throw err;
+    }
+  },
+
+  fetchMyTickets: async (email) => {
+    set((state) => ({ loading: { ...state.loading, tickets: true } }));
+    try {
+      const userEmail = email || get().user?.email;
+      const data = await api.tickets.getMy(userEmail);
+      set({ myTickets: data.tickets || [] });
+    } catch (err) {
+      console.error('Failed to fetch tickets:', err);
+    } finally {
+      set((state) => ({ loading: { ...state.loading, tickets: false } }));
+    }
+  },
+
+  checkIn: async (payload) => {
+    try {
+      const data = await api.tickets.checkIn(payload);
+      // Update local ticket checked-in state
+      if (data.scan?.ticketId) {
+        set((state) => ({
+          myTickets: state.myTickets.map(t =>
+            t.id === data.scan.ticketId ? { ...t, checkedIn: true } : t
+          )
+        }));
+      }
+      return data;
+    } catch (err) {
+      throw err;
+    }
+  },
+
+  // ─── Leads ───────────────────────────────────────────────────────────────────
+  addLead: async (leadData) => {
+    try {
+      const data = await api.leads.capture(leadData);
+      set((state) => ({ leads: [data.lead, ...state.leads] }));
+      if (leadData.eventId) {
+        set((state) => ({
+          events: state.events.map(e =>
+            e.id === leadData.eventId ? { ...e, leads: (e.leads || 0) + 1 } : e
+          )
+        }));
+      }
+      return data.lead;
+    } catch (err) {
+      throw err;
+    }
+  },
+
+  fetchLeads: async (eventId) => {
+    try {
+      const data = await api.leads.getAll(eventId);
+      set({ leads: data.leads || [] });
+    } catch (err) {
+      console.error('Failed to fetch leads:', err);
+    }
+  },
 }));

@@ -1,21 +1,25 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Zap, ArrowRight, Lock, Mail, User } from 'lucide-react';
+import { Zap, ArrowRight, Lock, Mail } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import toast from 'react-hot-toast';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login } = useStore();
+  const { login, loading } = useStore();
   const [email, setEmail] = useState('organizer@rsrevents.in');
   const [password, setPassword] = useState('password123');
   const [role, setRole] = useState('organizer');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    login({ name: email.split('@')[0], email, role });
-    toast.success(`Welcome back (${role.toUpperCase()})!`);
-    navigate('/dashboard');
+    const result = await login({ email, password, role });
+    if (result.success) {
+      toast.success(`Welcome back (${result.user.role.toUpperCase()})!`);
+      navigate('/dashboard');
+    } else {
+      toast.error(result.error || 'Login failed. Please check your credentials.');
+    }
   };
 
   return (
@@ -76,9 +80,10 @@ export default function Login() {
 
           <button
             type="submit"
-            className="w-full flex items-center justify-center gap-2 bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-blue-700/20 text-sm"
+            disabled={loading.auth}
+            className="w-full flex items-center justify-center gap-2 bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-blue-700/20 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Sign In to Account <ArrowRight className="w-4 h-4" />
+            {loading.auth ? 'Signing In...' : <>Sign In to Account <ArrowRight className="w-4 h-4" /></>}
           </button>
         </form>
 

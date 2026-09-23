@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { useStore } from './store/useStore';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import EventChatbot from './components/chat/EventChatbot';
@@ -16,6 +17,11 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 
 export default function App() {
+  const { fetchEvents } = useStore();
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
   return (
     <BrowserRouter>
       <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 antialiased selection:bg-blue-600 selection:text-white">

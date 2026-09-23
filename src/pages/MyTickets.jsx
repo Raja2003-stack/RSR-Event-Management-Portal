@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Ticket, Calendar, Clock, MapPin, Download, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -7,7 +7,11 @@ import { formatDate, getDaysLeft } from '../utils/helpers';
 import toast from 'react-hot-toast';
 
 export default function MyTickets() {
-  const { myTickets } = useStore();
+  const { myTickets, fetchMyTickets, user, loading } = useStore();
+
+  useEffect(() => {
+    fetchMyTickets(user?.email);
+  }, [user]);
 
   const handleDownloadTicket = (ticketId) => {
     toast.success(`🎟️ Downloading Ticket #${ticketId} PDF with pass badge...`);
@@ -16,7 +20,7 @@ export default function MyTickets() {
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto space-y-8">
-        
+
         {/* Header */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -40,8 +44,17 @@ export default function MyTickets() {
           </Link>
         </div>
 
+        {/* Loading */}
+        {loading.tickets && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[1,2].map(i => (
+              <div key={i} className="bg-white rounded-2xl border border-slate-200 h-64 animate-pulse" />
+            ))}
+          </div>
+        )}
+
         {/* Tickets Grid or Empty State */}
-        {myTickets.length === 0 ? (
+        {!loading.tickets && myTickets.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm">
             <div className="w-20 h-20 bg-blue-50 text-blue-700 rounded-full flex items-center justify-center mx-auto mb-4">
               <Ticket className="w-10 h-10" />
@@ -59,71 +72,77 @@ export default function MyTickets() {
               Discover & Register Now
             </Link>
           </div>
-        ) : (
+        ) : !loading.tickets && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {myTickets.map((ticket) => {
+            {myTickets.map(ticket => {
               const daysLeft = getDaysLeft(ticket.eventDate);
+              const isUpcoming = daysLeft >= 0;
               return (
-                <div
-                  key={ticket.id}
-                  className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col justify-between"
-                >
-                  <div className="p-6">
-                    {/* Status badge */}
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-xs font-bold uppercase tracking-wider bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
-                        {ticket.ticketType}
-                      </span>
-                      {ticket.checkedIn ? (
-                        <span className="flex items-center gap-1 text-xs font-bold text-green-700 bg-green-50 px-2.5 py-1 rounded-full">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Checked-In
+                <div key={ticket.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  {/* Event image strip */}
+                  {ticket.eventImage && (
+                    <div className="h-28 overflow-hidden relative">
+                      <img src={ticket.eventImage} alt={ticket.eventTitle} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                      <div className="absolute bottom-3 left-4">
+                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${ticket.checkedIn ? 'bg-green-500 text-white' : isUpcoming ? 'bg-blue-600 text-white' : 'bg-slate-500 text-white'}`}>
+                          {ticket.checkedIn ? '✅ Checked In' : isUpcoming ? `${daysLeft}d left` : 'Past Event'}
                         </span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full">
-                          <AlertCircle className="w-3.5 h-3.5" /> {daysLeft > 0 ? `In ${daysLeft} days` : 'Happening Today'}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="p-5">
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-sm leading-tight" style={{fontFamily:'Poppins,sans-serif'}}>
+                          {ticket.eventTitle}
+                        </h3>
+                        <span className="text-xs bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-full mt-1 inline-block">
+                          {ticket.ticketType}
                         </span>
+                      </div>
+                      <div className="bg-white border border-slate-100 rounded-xl p-1.5 shrink-0">
+                        <QRCodeSVG value={ticket.qrCode || ticket.id} size={64} />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 mb-4">
+                      <div className="flex items-center gap-2 text-slate-500 text-xs">
+                        <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                        <span>{formatDate(ticket.eventDate)}</span>
+                      </div>
+                      {ticket.eventTime && (
+                        <div className="flex items-center gap-2 text-slate-500 text-xs">
+                          <Clock className="w-3.5 h-3.5 text-blue-500" />
+                          <span>{ticket.eventTime}</span>
+                        </div>
+                      )}
+                      {ticket.eventVenue && (
+                        <div className="flex items-center gap-2 text-slate-500 text-xs">
+                          <MapPin className="w-3.5 h-3.5 text-blue-500" />
+                          <span>{ticket.eventVenue}</span>
+                        </div>
                       )}
                     </div>
 
-                    <h3 className="text-lg font-bold text-slate-900 leading-snug mb-3" style={{fontFamily:'Poppins,sans-serif'}}>
-                      {ticket.eventTitle}
-                    </h3>
-
-                    <div className="space-y-2 text-xs text-slate-600 mb-6">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
-                        <span>{formatDate(ticket.eventDate)}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-blue-600 shrink-0" />
-                        <span>{ticket.eventTime}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
-                        <span className="truncate">{ticket.eventVenue}</span>
-                      </div>
-                    </div>
-
-                    {/* QR Code Container */}
-                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-center gap-6">
-                      <div className="bg-white p-2.5 rounded-lg shadow-xs border border-slate-200">
-                        <QRCodeSVG value={ticket.qrCode} size={90} />
-                      </div>
+                    <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl mb-3">
+                      {ticket.checkedIn ? (
+                        <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+                      )}
                       <div>
-                        <p className="text-xs font-bold text-slate-800">Pass Code</p>
-                        <p className="font-mono text-xs font-bold text-blue-700 mt-0.5">{ticket.qrCode}</p>
-                        <p className="text-[11px] text-slate-400 mt-1">Attendee: {ticket.attendeeInfo?.name || 'Delegate'}</p>
+                        <p className="text-xs font-bold text-slate-700">{ticket.attendeeInfo?.name}</p>
+                        <p className="text-xs text-slate-500">{ticket.attendeeInfo?.email}</p>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xs text-slate-500 font-medium">Valid for 1 Entry</span>
                     <button
                       onClick={() => handleDownloadTicket(ticket.id)}
-                      className="flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-900 hover:underline"
+                      className="w-full flex items-center justify-center gap-2 border border-slate-200 text-slate-700 font-semibold text-xs py-2.5 rounded-xl hover:bg-slate-50 transition"
                     >
-                      <Download className="w-3.5 h-3.5" /> Save / Download Pass
+                      <Download className="w-3.5 h-3.5" /> Download Pass PDF
                     </button>
                   </div>
                 </div>
@@ -131,7 +150,6 @@ export default function MyTickets() {
             })}
           </div>
         )}
-
       </div>
     </div>
   );

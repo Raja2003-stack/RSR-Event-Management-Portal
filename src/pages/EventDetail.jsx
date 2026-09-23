@@ -1,20 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Calendar, Clock, MapPin, Users, Share2, Heart, ArrowLeft, User, CheckCircle, Star, Tag } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, Share2, Heart, ArrowLeft, CheckCircle } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { formatDate, formatCurrency, getDaysLeft } from '../utils/helpers';
 import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
+import api from '../services/api';
 
 export default function EventDetail() {
   const { id } = useParams();
-  const { events, registerForEvent, isLoggedIn } = useStore();
-  const event = events.find(e => e.id === id);
+  const { events, fetchEvents, registerForEvent, isLoggedIn } = useStore();
+  const [event, setEvent] = useState(events.find(e => e.id === id) || null);
   const [tab, setTab] = useState('about');
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [showRegModal, setShowRegModal] = useState(false);
   const [regDone, setRegDone] = useState(null);
-  const [formData, setFormData] = useState({ name:'', email:'', phone:'' });
+  const [registering, setRegistering] = useState(false);
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '' });
+
+  useEffect(() => {
+    // If event is not in store, fetch it directly from API
+    if (!event) {
+      api.events.getById(id).then(data => {
+        if (data?.event) setEvent(data.event);
+      }).catch(() => {});
+    }
+    // Also refresh store if empty
+    if (events.length === 0) fetchEvents();
+  }, [id]);
+
+  // Sync from store whenever events load
+  useEffect(() => {
+    const found = events.find(e => e.id === id);
+    if (found) setEvent(found);
+  }, [events, id]);
 
   if (!event) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -27,12 +46,24 @@ export default function EventDetail() {
   );
 
   const daysLeft = getDaysLeft(event.date);
+  const tags = Array.isArray(event.tags) ? event.tags : [];
+  const agenda = Array.isArray(event.agenda) ? event.agenda : [];
+  const speakers = Array.isArray(event.speakers) ? event.speakers : [];
+  const sponsors = Array.isArray(event.sponsors) ? event.sponsors : [];
+  const tickets = Array.isArray(event.tickets) ? event.tickets : [];
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!formData.name || !formData.email) { toast.error('Please fill in name and email'); return; }
-    const ticket = registerForEvent(event.id, selectedTicket.type, formData);
-    setRegDone(ticket);
-    toast.success('Registration successful!');
+    setRegistering(true);
+    try {
+      const ticket = await registerForEvent(event.id, selectedTicket.type, formData);
+      setRegDone(ticket);
+      toast.success('Registration successful!');
+    } catch (err) {
+      toast.error(err.message || 'Registration failed. Please try again.');
+    } finally {
+      setRegistering(false);
+    }
   };
 
   return (
@@ -65,9 +96,9 @@ export default function EventDetail() {
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
                 { icon: Calendar, label: formatDate(event.date), sub: 'Date' },
-                { icon: Clock, label: event.time+' - '+event.endTime, sub: 'Time' },
+                { icon: Clock, label: `${event.time} - ${event.endTime}`, sub: 'Time' },
                 { icon: MapPin, label: event.city, sub: 'City' },
-                { icon: Users, label: event.registrations.toLocaleString(), sub: 'Registered' },
+                { icon: Users, label: (event.registrations || 0).toLocaleString(), sub: 'Registered' },
               ].map(item => (
                 <div key={item.sub} className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0">
@@ -99,7 +130,7 @@ export default function EventDetail() {
                       <MapPin className="w-4 h-4 text-blue-500" /> <span className="font-medium">{event.venue}</span>
                     </div>
                     <div className="flex flex-wrap gap-2 mt-4">
-                      {event.tags.map(tag => (
+                      {tags.map(tag => (
                         <span key={tag} className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-medium">#{tag}</span>
                       ))}
                     </div>
@@ -107,11 +138,11 @@ export default function EventDetail() {
                 )}
                 {tab === 'agenda' && (
                   <div className="space-y-4">
-                    {event.agenda.map((item, i) => (
+                    {agenda.map((item, i) => (
                       <div key={i} className="flex gap-4 items-start">
                         <div className="flex flex-col items-center">
                           <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-xs font-bold text-blue-700">{item.time}</div>
-                          {i < event.agenda.length - 1 && <div className="w-0.5 h-8 bg-blue-100 mt-1" />}
+                          {i < agenda.length - 1 && <div className="w-0.5 h-8 bg-blue-100 mt-1" />}
                         </div>
                         <div className="pt-2">
                           <p className="font-semibold text-gray-800 text-sm">{item.title}</p>
@@ -122,7 +153,7 @@ export default function EventDetail() {
                 )}
                 {tab === 'speakers' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {event.speakers.map(speaker => (
+                    {speakers.map(speaker => (
                       <div key={speaker.name} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
                         <img src={speaker.avatar} alt={speaker.name} className="w-14 h-14 rounded-full" />
                         <div>
@@ -135,9 +166,9 @@ export default function EventDetail() {
                 )}
                 {tab === 'sponsors' && (
                   <div className="flex flex-wrap gap-4">
-                    {event.sponsors.map(sponsor => (
+                    {sponsors.map(sponsor => (
                       <div key={sponsor} className="flex items-center gap-3 bg-gray-50 rounded-xl px-5 py-3">
-                        <img src={`https://ui-avatars.com/api/?name=${sponsor}&background=random&color=fff&size=40`} alt={sponsor} className="w-10 h-10 rounded-lg" />
+                        <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(sponsor)}&background=random&color=fff&size=40`} alt={sponsor} className="w-10 h-10 rounded-lg" />
                         <span className="font-medium text-gray-700 text-sm">{sponsor}</span>
                       </div>
                     ))}
@@ -152,7 +183,7 @@ export default function EventDetail() {
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 sticky top-20">
               <h3 className="font-bold text-lg text-gray-800 mb-4" style={{fontFamily:'Poppins,sans-serif'}}>Get Tickets</h3>
               <div className="space-y-3 mb-6">
-                {event.tickets.map(ticket => (
+                {tickets.map(ticket => (
                   <button key={ticket.type} onClick={() => { setSelectedTicket(ticket); setShowRegModal(true); setRegDone(null); }}
                     className={`w-full p-4 rounded-xl border-2 text-left transition-all ${selectedTicket?.type === ticket.type ? 'border-blue-700 bg-blue-50' : 'border-gray-100 hover:border-blue-300'}`}>
                     <div className="flex items-center justify-between mb-1">
@@ -164,7 +195,6 @@ export default function EventDetail() {
                   </button>
                 ))}
               </div>
-
               <div className="flex gap-3">
                 <button className="p-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition">
                   <Heart className="w-5 h-5 text-gray-400" />
@@ -180,9 +210,9 @@ export default function EventDetail() {
               <h4 className="font-bold mb-4" style={{fontFamily:'Poppins,sans-serif'}}>Event Stats</h4>
               <div className="space-y-3">
                 {[
-                  { label: 'Registrations', value: event.registrations.toLocaleString() },
-                  { label: 'Attendees', value: event.attendees.toLocaleString() },
-                  { label: 'Leads Generated', value: event.leads.toLocaleString() },
+                  { label: 'Registrations', value: (event.registrations || 0).toLocaleString() },
+                  { label: 'Attendees', value: (event.attendees || 0).toLocaleString() },
+                  { label: 'Leads Generated', value: (event.leads || 0).toLocaleString() },
                 ].map(s => (
                   <div key={s.label} className="flex items-center justify-between">
                     <span className="text-blue-200 text-sm">{s.label}</span>
@@ -224,9 +254,9 @@ export default function EventDetail() {
                   <input placeholder="Phone" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})}
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
-                <button onClick={handleRegister}
-                  className="w-full bg-blue-700 text-white font-semibold py-3 rounded-xl hover:bg-blue-800 transition text-sm">
-                  {selectedTicket.price > 0 ? `Pay ${formatCurrency(selectedTicket.price)} & Register` : 'Register Now — Free'}
+                <button onClick={handleRegister} disabled={registering}
+                  className="w-full bg-blue-700 text-white font-semibold py-3 rounded-xl hover:bg-blue-800 transition text-sm disabled:opacity-60">
+                  {registering ? 'Registering...' : selectedTicket.price > 0 ? `Pay ${formatCurrency(selectedTicket.price)} & Register` : 'Register Now — Free'}
                 </button>
               </>
             )}

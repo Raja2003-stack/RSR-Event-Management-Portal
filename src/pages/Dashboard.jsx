@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Users, Calendar, TrendingUp, DollarSign, Target, QrCode, 
@@ -31,17 +31,29 @@ const leadFunnelData = [
 ];
 
 export default function Dashboard() {
-  const { events, leads } = useStore();
+  const { events, leads, fetchEvents, fetchLeads } = useStore();
   const [selectedEventId, setSelectedEventId] = useState(events[0]?.id || '1');
+
+  useEffect(() => {
+    fetchEvents();
+    fetchLeads();
+  }, []);
+
+  useEffect(() => {
+    if (events.length > 0 && !selectedEventId) {
+      setSelectedEventId(events[0].id);
+    }
+  }, [events]);
 
   const totalRegs = events.reduce((acc, e) => acc + (e.registrations || 0), 0);
   const totalAttendees = events.reduce((acc, e) => acc + (e.attendees || 0), 0);
   const totalLeads = events.reduce((acc, e) => acc + (e.leads || 0), 0) + leads.length;
-  const estimatedRevenue = events.reduce((acc, e) => acc + (e.registrations * 1200), 0);
+  const estimatedRevenue = events.reduce((acc, e) => acc + ((e.registrations || 0) * 1200), 0);
 
   const exportReport = () => {
     toast.success('📊 Exporting CSV Growth Analytics Report...');
   };
+
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
