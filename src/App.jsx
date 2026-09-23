@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
+import EventChatbot from './components/chat/EventChatbot';
 import Home from './pages/Home';
 import Events from './pages/Events';
 import EventDetail from './pages/EventDetail';
@@ -35,6 +36,7 @@ export default function App() {
           </Routes>
         </main>
         <Footer />
+        <EventChatbot />
       </div>
     </BrowserRouter>
   );

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, X, Zap, Bell, User, ChevronDown } from 'lucide-react';
+import { Menu, X, Zap, Bell, User, ChevronDown, Bot } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 
 export default function Navbar() {
@@ -27,6 +27,13 @@ export default function Navbar() {
             <Link to="/create-event" className="text-gray-600 hover:text-blue-700 font-medium text-sm transition-colors">List Your Event</Link>
             <Link to="/dashboard" className="text-gray-600 hover:text-blue-700 font-medium text-sm transition-colors">Dashboard</Link>
             <Link to="/my-tickets" className="text-gray-600 hover:text-blue-700 font-medium text-sm transition-colors">My Tickets</Link>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('open-rsr-chatbot'))}
+              className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-full font-medium text-xs transition border border-blue-200 cursor-pointer shadow-xs"
+            >
+              <Bot className="w-3.5 h-3.5 text-blue-700" />
+              <span>AI Assistant</span>
+            </button>
           </div>
 
           <div className="hidden md:flex items-center gap-3">
@@ -64,6 +71,16 @@ export default function Navbar() {
           <Link to="/create-event" className="block text-gray-700 font-medium py-2" onClick={() => setOpen(false)}>List Your Event</Link>
           <Link to="/dashboard" className="block text-gray-700 font-medium py-2" onClick={() => setOpen(false)}>Dashboard</Link>
           <Link to="/my-tickets" className="block text-gray-700 font-medium py-2" onClick={() => setOpen(false)}>My Tickets</Link>
+          <button
+            onClick={() => {
+              setOpen(false);
+              window.dispatchEvent(new CustomEvent('open-rsr-chatbot'));
+            }}
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-blue-50 text-blue-700 rounded-lg font-medium text-sm border border-blue-200"
+          >
+            <Bot className="w-4 h-4" />
+            <span>Ask AI Event Assistant</span>
+          </button>
           <div className="flex gap-3 pt-2">
             <Link to="/login" className="flex-1 text-center border border-blue-700 text-blue-700 py-2 rounded-lg font-medium text-sm" onClick={() => setOpen(false)}>Login</Link>
             <Link to="/register" className="flex-1 text-center bg-blue-700 text-white py-2 rounded-lg font-medium text-sm" onClick={() => setOpen(false)}>Sign Up Free</Link>
